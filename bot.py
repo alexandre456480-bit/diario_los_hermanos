@@ -5,7 +5,9 @@ import os
 import asyncio
 import json
 import sys
+from dotenv import load_dotenv
 
+load_dotenv()  # carrega o .env
 # ================= VERIFICAÇÃO DE BOT DUPLICADO =================
 
 LOCK_FILE = "bot.lock"
