@@ -390,6 +390,43 @@ class AdminView(discord.ui.View):
             ephemeral=True
         )
 
+    @discord.ui.button(label="➕ Adicionar Jogador", style=discord.ButtonStyle.success, custom_id="btn_add_jog")
+    async def adicionar_jogador(self, interaction: discord.Interaction, button: discord.ui.Button):
+        
+        if contar_inscritos() >= MAX_JOGADORES:
+            await interaction.response.send_message("🚫 Vagas esgotadas.", ephemeral=True)
+            return
+
+        await interaction.response.send_message("Digite o nick do jogador:", ephemeral=True)
+
+        def check(m):
+            return m.author == interaction.user
+
+        try:
+            msg = await bot.wait_for("message", timeout=60, check=check)
+        except asyncio.TimeoutError:
+            await interaction.followup.send("⏰ Tempo esgotado.", ephemeral=True)
+            return
+
+        nick = msg.content.strip()
+
+        if not nick:
+            await interaction.followup.send("❌ Nick inválido.", ephemeral=True)
+            return
+
+        # Adicionar jogador com ID especial do admin
+        admin_user_id = f"admin_{interaction.user.id}_{int(__import__('time').time())}"
+        
+        if adicionar_inscrito(admin_user_id, nick):
+            total = contar_inscritos()
+            await interaction.followup.send(
+                f"✅ Jogador **{nick}** adicionado à fila!\n"
+                f"📊 Total: {total}/{MAX_JOGADORES}",
+                ephemeral=True
+            )
+        else:
+            await interaction.followup.send(f"❌ Nick **{nick}** já existe na fila.", ephemeral=True)
+
     @discord.ui.button(label="❌ Remover Jogador", style=discord.ButtonStyle.danger, custom_id="btn_remover_jog")
     async def remover(self, interaction: discord.Interaction, button: discord.ui.Button):
 
