@@ -72,9 +72,13 @@ def adicionar_inscrito(user_id, nick):
         if jogador["nick"].lower() == nick.lower():
             return False
 
+    # Calcular o número do slot (posição + 1)
+    slot_numero = len(dados["inscritos"]) + 1
+
     dados["inscritos"].append({
         "user_id": str(user_id),
-        "nick": nick
+        "nick": nick,
+        "slot": slot_numero
     })
 
     salvar_dados(dados)
@@ -164,6 +168,41 @@ class TicketView(discord.ui.View):
         embed.set_footer(text="Clique em 'Fazer o Pix' para efetuar o pagamento")
         embed.set_thumbnail(url=IMAGEM_URL)
 
+        # Embed com instruções
+        embed_instrucoes = discord.Embed(
+            title="📋 INSTRUÇÕES PARA SE INSCREVER",
+            description="Siga os passos abaixo para completar sua inscrição:",
+            color=discord.Color.from_rgb(30, 144, 255)
+        )
+        embed_instrucoes.add_field(
+            name="1️⃣ Efetue o Pagamento",
+            value="Clique em 'Fazer o Pix' e escaneie o QR code ou use a chave PIX fornecida",
+            inline=False
+        )
+        embed_instrucoes.add_field(
+            name="2️⃣ Envie o Comprovante",
+            value="Após o pagamento, envie um print do comprovante de PIX neste ticket",
+            inline=False
+        )
+        embed_instrucoes.add_field(
+            name="3️⃣ Confirme o Pagamento",
+            value="Clique em 'Confirmar Pagamento' e digite seu nick no Free Fire",
+            inline=False
+        )
+        embed_instrucoes.add_field(
+            name="4️⃣ Aguarde Aprovação",
+            value="A staff irá revisar sua inscrição e aprovar ou recusar",
+            inline=False
+        )
+        embed_instrucoes.add_field(
+            name="💡 Dica",
+            value="Prepare seu nick do Free Fire antes de clicar em 'Confirmar Pagamento'",
+            inline=False
+        )
+        embed_instrucoes.set_footer(text="Qualquer dúvida, entre em contato com a staff!")
+
+        await channel.send(embed=embed_instrucoes)
+
         await channel.send(
             content=interaction.user.mention,
             embed=embed,
@@ -212,7 +251,27 @@ class PagamentoView(discord.ui.View):
         qr.save("pix.png")
 
         file = discord.File("pix.png", filename="pix.png")
-        await interaction.channel.send("💰 Após enviar o comprovante confirme o pagamento.", file=file)
+        
+        # Criar embed com o QR code e a chave PIX
+        embed_pix = discord.Embed(
+            title="💰 INSTRUÇÕES DE PAGAMENTO",
+            description="Escaneie o QR code abaixo ou copie a chave PIX:",
+            color=discord.Color.from_rgb(220, 20, 60)
+        )
+        embed_pix.add_field(
+            name="🔑 CHAVE PIX",
+            value="```diarioloshermanos@gmail.com```",
+            inline=False
+        )
+        embed_pix.add_field(
+            name="📱 INSTRUÇÕES",
+            value="1. Escaneie o QR code ou copie a chave PIX\n2. Realize o pagamento de R$ 5,00\n3. Envie o comprovante\n4. Clique em 'Confirmar Pagamento'",
+            inline=False
+        )
+        embed_pix.set_image(url="attachment://pix.png")
+        embed_pix.set_footer(text="Após enviar o comprovante confirme o pagamento.")
+        
+        await interaction.channel.send(embed=embed_pix, file=file)
 
         if os.path.exists("pix.png"):
             os.remove("pix.png")
@@ -345,28 +404,34 @@ class AprovarView(discord.ui.View):
         except discord.Forbidden:
             await self.ticket_channel.send("⚠️ Não foi possível adicionar o cargo.", delete_after=5)
 
-        # Enviar mensagem no canal de inscritos
+        # Enviar mensagem no canal de inscritos com slots
         try:
             canal_inscritos = interaction.client.get_channel(CANAL_INSCRITOS_ID)
             if canal_inscritos:
                 guild = self.ticket_channel.guild
+                dados = carregar_dados()
                 total_inscritos = contar_inscritos()
                 
-                # Obter lista de membros com o cargo
-                membro_role = guild.get_role(MEMBRO_ROLE_ID)
-                membros_confirmados = []
-                if membro_role:
-                    membros_confirmados = [m.mention for m in guild.members if membro_role in m.roles]
+                # Obter o número do slot do jogador que foi adicionado
+                slot_numero = None
+                for inscrito in dados["inscritos"]:
+                    if inscrito["nick"].lower() == self.nick.lower():
+                        slot_numero = inscrito.get("slot", total_inscritos)
+                        break
                 
-                membros_text = "\n".join(membros_confirmados) if membros_confirmados else "Nenhum membro confirmado"
+                # Criar lista de inscritos com slots
+                lista_inscritos_slots = ""
+                for i, inscrito in enumerate(dados["inscritos"], 1):
+                    lista_inscritos_slots += f"\n🎮 **SLOT {inscrito.get('slot', i)}** - {inscrito['nick']}"
                 
                 embed = discord.Embed(
-                    title="✅ Jogador Confirmado",
+                    title="✅ Novo Jogador Confirmado",
                     description=f"🎮 Jogador **{self.nick}** foi confirmado no Diário!",
                     color=discord.Color.from_rgb(0, 255, 127)
                 )
+                embed.add_field(name="🏆 SLOT ATRIBUÍDO", value=f"**SLOT {slot_numero}**", inline=False)
                 embed.add_field(name="📊 Total de inscritos", value=f"**{total_inscritos}/{MAX_JOGADORES}**", inline=False)
-                embed.add_field(name="👥 Jogadores confirmados", value=membros_text, inline=False)
+                embed.add_field(name="👥 LISTA DE INSCRITOS E SLOTS", value=lista_inscritos_slots if lista_inscritos_slots else "Aguardando inscritos...", inline=False)
                 embed.set_thumbnail(url=IMAGEM_URL)
                 await canal_inscritos.send(embed=embed)
         except Exception as e:
